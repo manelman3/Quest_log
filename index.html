@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Questlog · Gerenciador de Tarefas Gamificado</title>
+
+<!-- Google Fonts: Sora (display), Inter (body), JetBrains Mono (data/numbers) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Toast notifications live here -->
+<div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+<div class="app">
+
+  <!-- ============ TOPBAR ============ -->
+  <header class="topbar">
+    <div class="topbar__brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="34" height="34">
+          <circle cx="20" cy="20" r="17" fill="none" stroke="url(#brandGrad)" stroke-width="3"/>
+          <path d="M20 10 L23 18 L31 20 L23 22 L20 30 L17 22 L9 20 L17 18 Z" fill="url(#brandGrad)"/>
+          <defs>
+            <linearGradient id="brandGrad" x1="0" y1="0" x2="40" y2="40">
+              <stop offset="0%" stop-color="#F5A623"/>
+              <stop offset="100%" stop-color="#2DD4BF"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>Questlog</h1>
+        <p id="currentDate" class="topbar__date">—</p>
+      </div>
+    </div>
+
+    <div class="topbar__search">
+      <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" placeholder="Buscar missão…" autocomplete="off">
+    </div>
+
+    <div class="topbar__actions">
+      <button id="resetDayBtn" class="btn btn--ghost" title="Reiniciar progresso do dia">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
+        <span class="btn-label">Reiniciar dia</span>
+      </button>
+      <button id="exportBtn" class="btn btn--ghost" title="Exportar dados (.json)">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>
+        <span class="btn-label">Exportar</span>
+      </button>
+      <button id="importBtn" class="btn btn--ghost" title="Importar dados (.json)">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 21V9"/><polyline points="7 14 12 9 17 14"/><path d="M5 3h14"/></svg>
+        <span class="btn-label">Importar</span>
+      </button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+      <button id="addTaskBtn" class="btn btn--primary">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span class="btn-label">Nova missão</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============ LAYOUT ============ -->
+  <div class="layout">
+
+    <!-- ---------- MAIN: TASKS ---------- -->
+    <main class="main">
+
+      <section class="toolbar">
+        <div class="chip-row" id="categoryChips"><!-- filled by JS --></div>
+        <div class="toolbar__sort">
+          <label for="sortSelect">Ordenar</label>
+          <select id="sortSelect">
+            <option value="time">Horário</option>
+            <option value="priority">Prioridade</option>
+            <option value="points">Pontos</option>
+            <option value="name">Nome</option>
+          </select>
+        </div>
+      </section>
+
+      <div class="today-summary" id="todaySummary">
+        <!-- filled by JS: X de Y missões concluídas hoje -->
+      </div>
+
+      <section class="task-list" id="taskList">
+        <!-- tasks rendered by JS -->
+      </section>
+
+      <div class="empty-state hidden" id="emptyState">
+        <svg viewBox="0 0 24 24" width="52" height="52"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <h3>Nenhuma missão por aqui</h3>
+        <p>Crie sua primeira tarefa e comece a ganhar pontos.</p>
+      </div>
+    </main>
+
+    <!-- ---------- SIDEBAR ---------- -->
+    <aside class="sidebar">
+
+      <!-- Level ring — signature element -->
+      <div class="card level-card">
+        <div class="level-ring-wrap">
+          <svg class="level-ring" viewBox="0 0 120 120" width="120" height="120">
+            <circle class="level-ring__track" cx="60" cy="60" r="52"/>
+            <circle class="level-ring__progress" id="levelRingProgress" cx="60" cy="60" r="52"/>
+          </svg>
+          <div class="level-ring__center">
+            <span class="level-ring__label">NÍVEL</span>
+            <span class="level-ring__value" id="levelValue">1</span>
+          </div>
+        </div>
+        <div class="level-info">
+          <p class="level-info__xp"><span id="xpCurrent">0</span> / <span id="xpNeeded">100</span> XP</p>
+          <p class="level-info__next">para o próximo nível</p>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="card stats-card">
+        <h2 class="card__title">Estatísticas</h2>
+        <div class="stats-grid">
+          <div class="stat">
+            <span class="stat__value" id="statTotalPoints">0</span>
+            <span class="stat__label">Pontos totais</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value" id="statTodayPoints">0</span>
+            <span class="stat__label">Ganhos hoje</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value" id="statCompleted">0</span>
+            <span class="stat__label">Concluídas</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value" id="statRate">0%</span>
+            <span class="stat__label">Taxa conclusão</span>
+          </div>
+        </div>
+        <div class="streak">
+          <svg class="icon streak__flame" viewBox="0 0 24 24"><path d="M12 2s5 5.5 5 10a5 5 0 0 1-10 0c0-1.5.7-2.7 1.5-3.8.3 1 1 1.8 1 1.8S9 7 12 2Z"/></svg>
+          <span><strong id="streakValue">0</strong> dias de sequência</span>
+        </div>
+        <button type="button" id="removePointsBtn" class="btn btn--danger-ghost btn--full" title="Remover pontos do total">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span class="btn-label">Remover pontos</span>
+        </button>
+      </div>
+
+      <!-- Calendar -->
+      <div class="card calendar-card">
+        <div class="calendar-header">
+          <button id="calPrev" class="btn btn--icon" aria-label="Mês anterior">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h2 class="card__title" id="calendarMonthLabel">—</h2>
+          <button id="calNext" class="btn btn--icon" aria-label="Próximo mês">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="calendar-weekdays">
+          <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"><!-- filled by JS --></div>
+        <div class="calendar-day-tasks" id="calendarDayTasks"><!-- filled by JS --></div>
+      </div>
+
+      <!-- History -->
+      <div class="card history-card">
+        <h2 class="card__title">Últimos 30 dias</h2>
+        <div class="history-chart" id="historyChart"><!-- filled by JS --></div>
+      </div>
+
+    </aside>
+  </div>
+</div>
+
+<!-- ============ TASK MODAL ============ -->
+<div class="modal-overlay hidden" id="taskModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal__header">
+      <h2 id="modalTitle">Nova missão</h2>
+      <button class="btn btn--icon" id="closeModalBtn" aria-label="Fechar">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <form id="taskForm" class="modal__body">
+      <input type="hidden" id="taskId">
+
+      <div class="field">
+        <label for="taskName">Nome da tarefa *</label>
+        <input type="text" id="taskName" required maxlength="80" placeholder="Ex: Treinar 30 minutos">
+      </div>
+
+      <div class="field">
+        <label for="taskDescription">Descrição <span class="optional">(opcional)</span></label>
+        <textarea id="taskDescription" rows="2" maxlength="240" placeholder="Detalhes da missão…"></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="taskTime">Horário <span class="optional">(opcional)</span></label>
+          <input type="time" id="taskTime">
+        </div>
+        <div class="field">
+          <label for="taskPoints">Pontos *</label>
+          <input type="number" id="taskPoints" min="1" max="1000" value="10" required>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="taskCategory">Categoria <span class="optional">(opcional)</span></label>
+          <select id="taskCategory"><!-- filled by JS --></select>
+        </div>
+        <div class="field">
+          <label for="taskPriority">Prioridade</label>
+          <select id="taskPriority">
+            <option value="low">Baixa</option>
+            <option value="medium" selected>Média</option>
+            <option value="high">Alta</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="taskRecurrence">Recorrência</label>
+        <select id="taskRecurrence">
+          <option value="once">Apenas uma vez</option>
+          <option value="daily">Todos os dias</option>
+          <option value="specific-days">Dias específicos da semana</option>
+          <option value="every-x-days">A cada X dias</option>
+          <option value="weekly">Semanalmente</option>
+          <option value="monthly">Mensalmente</option>
+        </select>
+      </div>
+
+      <!-- Dynamic recurrence sub-fields -->
+      <div class="field recurrence-field" id="fieldOnceDate">
+        <label for="taskOnceDate">Data</label>
+        <input type="date" id="taskOnceDate">
+      </div>
+
+      <div class="field recurrence-field hidden" id="fieldSpecificDays">
+        <label>Selecione os dias</label>
+        <div class="weekday-picker" id="weekdayPickerMulti"><!-- filled by JS --></div>
+      </div>
+
+      <div class="field recurrence-field hidden" id="fieldEveryXDays">
+        <label for="taskInterval">Repetir a cada quantos dias?</label>
+        <input type="number" id="taskInterval" min="2" max="365" value="2">
+      </div>
+
+      <div class="field recurrence-field hidden" id="fieldWeekly">
+        <label>Dia da semana</label>
+        <div class="weekday-picker" id="weekdayPickerSingle"><!-- filled by JS --></div>
+      </div>
+
+      <div class="field recurrence-field hidden" id="fieldMonthly">
+        <label for="taskMonthDay">Dia do mês</label>
+        <input type="number" id="taskMonthDay" min="1" max="31" value="1">
+      </div>
+
+      <div class="modal__footer">
+        <button type="button" class="btn btn--danger-ghost hidden" id="deleteTaskBtn">Excluir</button>
+        <div class="modal__footer-right">
+          <button type="button" class="btn btn--ghost" id="cancelTaskBtn">Cancelar</button>
+          <button type="submit" class="btn btn--primary">Salvar missão</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ CONFIRM MODAL ============ -->
+<div class="modal-overlay hidden" id="confirmModal">
+  <div class="modal modal--small" role="alertdialog" aria-modal="true">
+    <div class="modal__body">
+      <h2 id="confirmTitle">Tem certeza?</h2>
+      <p id="confirmMessage">Esta ação não pode ser desfeita.</p>
+      <div class="modal__footer">
+        <div class="modal__footer-right">
+          <button type="button" class="btn btn--ghost" id="confirmCancelBtn">Cancelar</button>
+          <button type="button" class="btn btn--danger" id="confirmOkBtn">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ REMOVE POINTS MODAL ============ -->
+<div class="modal-overlay hidden" id="removePointsModal">
+  <div class="modal modal--small" role="dialog" aria-modal="true" aria-labelledby="removePointsTitle">
+    <div class="modal__body">
+      <h2 id="removePointsTitle">Remover pontos</h2>
+      <p class="modal__hint" id="removePointsHint">Escolha quantos pontos deseja remover do seu total.</p>
+      <div class="field">
+        <label for="removePointsInput">Quantidade de pontos</label>
+        <input type="number" id="removePointsInput" min="1" step="1" value="10">
+      </div>
+      <div class="modal__footer">
+        <div class="modal__footer-right">
+          <button type="button" class="btn btn--ghost" id="removePointsCancelBtn">Cancelar</button>
+          <button type="button" class="btn btn--danger" id="removePointsConfirmBtn">Remover</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
